@@ -1,115 +1,142 @@
 import discord
 from discord.ext import commands
-from discord.ui import Button, View
-import os
 import random
 import string
+import time
+import os
 
+# ========= CONFIG =========
+TOKEN = os.getenv("TOKEN")
+
+CANAL_VERIFICACION_ID = 1471608546620739604  # donde escriben el código
+CANAL_LOGS_ID = 1471656681195966586          # canal SOLO logs del bot
+
+ROL_VERIFICADO_ID = 1471637465700892673
+ROL_CHAMBALITOS_ID = 1467028217045975245
+
+# user_id: {codigo, expira}
+codigos_verificacion = {}
+
+# ========= BOT =========
 intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# CONFIGURACIÓN
-ROL_VERIFICADO = "Verificado"
-ROL_CHAMBALITOS = "Chambalitos"
-CANAL_LOGS_ID = 1471656681195966586
 
-codigos_verificacion = {}
-
-# ---------------- BOT LISTO ---------------- #
-
-@bot.event
-async def on_ready():
-    print(f"Bot conectado como {bot.user}")
-
-# ---------------- BOTÓN DE VERIFICACIÓN ---------------- #
-
-class VerificacionView(View):
+# ========= BOTÓN =========
+class VerificacionView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="Verificarse", style=discord.ButtonStyle.success, emoji="✅")
-    async def verificar(self, interaction: discord.Interaction, button: Button):
-        member = interaction.user
-        guild = interaction.guild
-
-        if guild is None:
-            return
-
-        rol_verificado = discord.utils.get(guild.roles, name=ROL_VERIFICADO)
+    @discord.ui.button(
+        label="Verificarse",
+        style=discord.ButtonStyle.success,
+        emoji="✅",
+        custom_id="verificar_boton"
+    )
+    async def verificar(self, interaction: discord.Interaction, button: discord.ui.Button):
+        member = interaction.guild.get_member(interaction.user.id)
+        rol_verificado = interaction.guild.get_role(ROL_VERIFICADO_ID)
 
         if rol_verificado in member.roles:
             await interaction.response.send_message(
-                "⚠️ Ya estás verificado.", ephemeral=True
+                "❌ Ya estás verificado.",
+                ephemeral=True
             )
             return
 
-        # Generar código de 6 caracteres
-        codigo = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-        codigos_verificacion[member.id] = codigo
+        codigo = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
-        await interaction.response.send_message(
-            f"Tu código es: `{codigo}`\nEscríbelo en el chat para verificarte.\nExpira en 2 minutos.",
-            ephemeral=True
-        )
+        codigos_verificacion[member.id] = {
+            "codigo": codigo,
+            "expira": time.time() + 120
+        }
 
-# ---------------- COMANDO PARA ENVIAR PANEL ---------------- #
+        try:
+            await member.send(
+                "🔐 **Verificación del servidor**\n\n"
+                f"Tu código es: **`{codigo}`**\n"
+                "⏱️ Expira en **2 minutos**\n\n"
+                "📌 Escríbelo en el canal de verificación."
+            )
+            await interaction.response.send_message(
+                "📩 Código enviado a tu MD.",
+                ephemeral=True
+            )
+        except:
+            await interaction.response.send_message(
+                "❌ No puedo enviarte MD. Actívalos.",
+                ephemeral=True
+            )
 
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def panel(ctx):
-    embed = discord.Embed(
-        title="Sistema de Verificación",
-        description="Haz clic en el botón para verificarte.",
-        color=discord.Color.green()
-    )
-    await ctx.send(embed=embed, view=VerificacionView())
 
-# ---------------- VERIFICACIÓN POR MENSAJE ---------------- #
+# ========= EVENTOS =========
+@bot.event
+async def on_ready():
+    bot.add_view(VerificacionView())
+    print(f"Bot conectado como {bot.user}")
+
 
 @bot.event
 async def on_message(message):
-    await bot.process_commands(message)
-
     if message.author.bot:
         return
 
-    if message.author.id in codigos_verificacion:
-        if message.content == codigos_verificacion[message.author.id]:
+    if message.channel.id != CANAL_VERIFICACION_ID:
+        return
 
-            member = message.author
-            guild = message.guild
+    await message.delete()
 
-            rol_verificado = discord.utils.get(guild.roles, name=ROL_VERIFICADO)
-            rol_chambalitos = discord.utils.get(guild.roles, name=ROL_CHAMBALITOS)
+    user_id = message.author.id
+    texto = message.content.strip()
 
-            roles_a_agregar = []
+    if user_id not in codigos_verificacion:
+        return
 
-            if rol_verificado:
-                roles_a_agregar.append(rol_verificado)
+    datos = codigos_verificacion[user_id]
 
-            if rol_chambalitos:
-                roles_a_agregar.append(rol_chambalitos)
+    logs = message.guild.get_channel(CANAL_LOGS_ID)
 
-            if roles_a_agregar:
-                await member.add_roles(*roles_a_agregar)
+    # Código expirado
+    if time.time() > datos["expira"]:
+        del codigos_verificacion[user_id]
+        if logs:
+            await logs.send(f"⏱️ Código expirado — **{message.author}**")
+        try:
+            await message.author.send("❌ Tu código expiró. Presiona verificar otra vez.")
+        except:
+            pass
+        return
 
-            del codigos_verificacion[member.id]
+    # Código incorrecto
+    if texto != datos["codigo"]:
+        if logs:
+            await logs.send(f"❌ Código incorrecto — **{message.author}**")
+        return
 
-            await message.channel.send(f"✅ {member.mention} ahora está verificado.")
+    # Código correcto
+    guild = message.guild
+    member = guild.get_member(user_id)
 
-            # LOGS
-            canal_logs = bot.get_channel(CANAL_LOGS_ID)
-            if canal_logs:
-                embed = discord.Embed(
-                    title="Nuevo Usuario Verificado",
-                    description=f"Usuario: {member.mention}\nID: {member.id}",
-                    color=discord.Color.blue()
-                )
-                await canal_logs.send(embed=embed)
+    rol_verificado = guild.get_role(ROL_VERIFICADO_ID)
+    rol_chambalitos = guild.get_role(ROL_CHAMBALITOS_ID)
 
-# ---------------- INICIAR BOT ---------------- #
+    await member.add_roles(rol_verificado, rol_chambalitos)
 
-bot.run(os.getenv("TOKEN"))
+    del codigos_verificacion[user_id]
+
+    if logs:
+        await logs.send(f"✅ Usuario verificado — **{member}**")
+
+    try:
+        await member.send(
+            "✅ **Verificación completada**\n\n"
+            "Ya tienes acceso al servidor. ¡Bienvenido!"
+        )
+    except:
+        pass
+
+
+bot.run(TOKEN)
