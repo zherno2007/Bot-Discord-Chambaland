@@ -8,8 +8,8 @@ import os
 # ========= CONFIGURACIÓN =========
 TOKEN = os.getenv("TOKEN")
 
-CANAL_VERIFICACION_ID = 1471608546620739604
-CANAL_LOGS_ID = 1471656681195966586   
+CANAL_VERIFICACION_ID = 1471608546620739604  
+CANAL_LOGS_ID = 1471656681195966586          
 
 ROL_VERIFICADO_ID = 1471637465700892673
 ROL_CHAMBALITOS_ID = 1467028217045975245
@@ -46,9 +46,7 @@ class VerificacionView(discord.ui.View):
             )
             return
 
-        codigo = "".join(
-            random.choices(string.ascii_uppercase + string.digits, k=6)
-        )
+        codigo = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
         codigos_verificacion[member.id] = {
             "codigo": codigo,
@@ -83,7 +81,14 @@ async def on_message(message):
     if message.author.bot:
         return
 
+    # 🟢 PERMITIR !panel antes de borrar
+    if message.content.startswith("!panel"):
+        await bot.process_commands(message)
+        return
+
+    # 🔒 SOLO trabajar en canal de verificación
     if message.channel.id != CANAL_VERIFICACION_ID:
+        await bot.process_commands(message)
         return
 
     # 🔴 BORRA TODO (códigos, menciones, spam)
@@ -132,10 +137,10 @@ async def on_message(message):
     guild = message.guild
     member = guild.get_member(user_id)
 
-    rol_verificado = guild.get_role(ROL_VERIFICADO_ID)
-    rol_chambalitos = guild.get_role(ROL_CHAMBALITOS_ID)
-
-    await member.add_roles(rol_verificado, rol_chambalitos)
+    await member.add_roles(
+        guild.get_role(ROL_VERIFICADO_ID),
+        guild.get_role(ROL_CHAMBALITOS_ID)
+    )
 
     del codigos_verificacion[user_id]
 
@@ -153,4 +158,18 @@ async def on_message(message):
     except:
         pass
 
+# ========= COMANDO PANEL =========
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def panel(ctx):
+    embed = discord.Embed(
+        title="🔐 Verificación",
+        description="Pulsa el botón para verificarte",
+        color=discord.Color.green()
+    )
+
+    await ctx.send(embed=embed, view=VerificacionView())
+    await ctx.message.delete()
+
 bot.run(TOKEN)
+
