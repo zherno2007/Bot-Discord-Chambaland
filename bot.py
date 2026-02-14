@@ -5,11 +5,11 @@ import string
 import time
 import os
 
-# ========= CONFIG =========
+# ========= CONFIGURACIÓN =========
 TOKEN = os.getenv("TOKEN")
 
-CANAL_VERIFICACION_ID = 1471608546620739604  # donde escriben el código
-CANAL_LOGS_ID = 1471656681195966586          # canal SOLO logs del bot
+CANAL_VERIFICACION_ID = 1471608546620739604
+CANAL_LOGS_ID = 1471656681195966586   
 
 ROL_VERIFICADO_ID = 1471637465700892673
 ROL_CHAMBALITOS_ID = 1467028217045975245
@@ -23,7 +23,6 @@ intents.members = True
 intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
-
 
 # ========= BOTÓN =========
 class VerificacionView(discord.ui.View):
@@ -47,7 +46,9 @@ class VerificacionView(discord.ui.View):
             )
             return
 
-        codigo = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        codigo = "".join(
+            random.choices(string.ascii_uppercase + string.digits, k=6)
+        )
 
         codigos_verificacion[member.id] = {
             "codigo": codigo,
@@ -62,7 +63,7 @@ class VerificacionView(discord.ui.View):
                 "📌 Escríbelo en el canal de verificación."
             )
             await interaction.response.send_message(
-                "📩 Código enviado a tu MD.",
+                "📩 Te envié el código por MD.",
                 ephemeral=True
             )
         except:
@@ -71,13 +72,11 @@ class VerificacionView(discord.ui.View):
                 ephemeral=True
             )
 
-
 # ========= EVENTOS =========
 @bot.event
 async def on_ready():
     bot.add_view(VerificacionView())
     print(f"Bot conectado como {bot.user}")
-
 
 @bot.event
 async def on_message(message):
@@ -87,7 +86,11 @@ async def on_message(message):
     if message.channel.id != CANAL_VERIFICACION_ID:
         return
 
-    await message.delete()
+    # 🔴 BORRA TODO (códigos, menciones, spam)
+    try:
+        await message.delete()
+    except:
+        pass
 
     user_id = message.author.id
     texto = message.content.strip()
@@ -96,27 +99,36 @@ async def on_message(message):
         return
 
     datos = codigos_verificacion[user_id]
-
     logs = message.guild.get_channel(CANAL_LOGS_ID)
 
-    # Código expirado
+    # ⏱️ Código expirado
     if time.time() > datos["expira"]:
         del codigos_verificacion[user_id]
+
         if logs:
-            await logs.send(f"⏱️ Código expirado — **{message.author}**")
+            log = await logs.send(
+                f"⏱️ Código expirado — {message.author.name} (ID: {user_id})"
+            )
+            await log.delete(delay=30)
+
         try:
-            await message.author.send("❌ Tu código expiró. Presiona verificar otra vez.")
+            await message.author.send(
+                "❌ Tu código expiró. Presiona el botón de verificación otra vez."
+            )
         except:
             pass
         return
 
-    # Código incorrecto
+    # ❌ Código incorrecto
     if texto != datos["codigo"]:
         if logs:
-            await logs.send(f"❌ Código incorrecto — **{message.author}**")
+            log = await logs.send(
+                f"❌ Código incorrecto — {message.author.name} (ID: {user_id})"
+            )
+            await log.delete(delay=30)
         return
 
-    # Código correcto
+    # ✅ Código correcto
     guild = message.guild
     member = guild.get_member(user_id)
 
@@ -128,7 +140,10 @@ async def on_message(message):
     del codigos_verificacion[user_id]
 
     if logs:
-        await logs.send(f"✅ Usuario verificado — **{member}**")
+        log = await logs.send(
+            f"✅ Usuario verificado — {member.name} (ID: {user_id})"
+        )
+        await log.delete(delay=30)
 
     try:
         await member.send(
@@ -137,6 +152,5 @@ async def on_message(message):
         )
     except:
         pass
-
 
 bot.run(TOKEN)
