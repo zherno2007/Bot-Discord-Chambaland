@@ -8,7 +8,7 @@ import os
 # ========= CONFIGURACIÓN =========
 TOKEN = os.getenv("TOKEN")
 
-CANAL_VERIFICACION_ID = 1472621737786212434  
+CANAL_VERIFICACION_ID = 1472622794754883686  
 CANAL_LOGS_ID = 1471656681195966586          
 
 ROL_VERIFICADO_ID = 1471637465700892673
@@ -172,5 +172,6 @@ async def panel(ctx):
     await ctx.message.delete()
 
 bot.run(TOKEN)
+
 
 
