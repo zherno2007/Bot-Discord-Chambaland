@@ -8,11 +8,11 @@ import os
 # ========= CONFIGURACIÓN =========
 TOKEN = os.getenv("TOKEN")
 
-CANAL_VERIFICACION_ID = 1472622794754883686  
-CANAL_LOGS_ID = 1471656681195966586          
+CANAL_VERIFICACION_ID = #codigo  
+CANAL_LOGS_ID = #codigo          
 
-ROL_VERIFICADO_ID = 1471637465700892673
-ROL_CHAMBALITOS_ID = 1467028217045975245
+ROL_VERIFICADO_ID = #codigo
+ROL_CHAMBALITOS_ID = #codigo
 
 # user_id: {codigo, expira}
 codigos_verificacion = {}
